@@ -72,14 +72,14 @@ func main() {
 
 	if *runHttpServer {
 		// Debug server.
-		debugServer := buildServer(wrappedGrpc)
+		debugServer := buildServer2()
 		http.Handle("/metrics", promhttp.Handler())
 		debugListener := buildListenerOrFail("http", *flagHttpPort)
 		serveServer(debugServer, debugListener, "http", errChan)
 	}
 
 	if *runTlsServer {
-		// Debug server.
+		// tls server.
 		servingServer := buildServer(wrappedGrpc)
 		servingListener := buildListenerOrFail("http", *flagHttpTlsPort)
 		servingListener = tls.NewListener(servingListener, buildServerTlsOrFail())
@@ -96,6 +96,17 @@ func buildServer(wrappedGrpc *grpcweb.WrappedGrpcServer) *http.Server {
 		ReadTimeout:  *flagHttpMaxReadTimeout,
 		Handler: http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 			wrappedGrpc.ServeHTTP(resp, req)
+		}),
+	}
+}
+
+func buildServer2() *http.Server {
+	return &http.Server{
+		WriteTimeout: *flagHttpMaxWriteTimeout,
+		ReadTimeout:  *flagHttpMaxReadTimeout,
+		Handler: http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+			//wrappedGrpc.ServeHTTP(resp, req)
+			http.DefaultServeMux.ServeHTTP(resp, req)
 		}),
 	}
 }
