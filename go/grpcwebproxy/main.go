@@ -72,7 +72,8 @@ func main() {
 
 	if *runHttpServer {
 		// Debug server.
-		debugServer := buildServer2()
+		debugServer := buildServer(http.DefaultServeMux)
+		http.Handle("/", wrappedGrpc)
 		http.Handle("/metrics", promhttp.Handler())
 		debugListener := buildListenerOrFail("http", *flagHttpPort)
 		serveServer(debugServer, debugListener, "http", errChan)
@@ -99,7 +100,7 @@ func buildServer(wrappedGrpc *grpcweb.WrappedGrpcServer) *http.Server {
 		}),
 	}
 }
-
+/*
 func buildServer2() *http.Server {
 	return &http.Server{
 		WriteTimeout: *flagHttpMaxWriteTimeout,
@@ -109,7 +110,7 @@ func buildServer2() *http.Server {
 			http.DefaultServeMux.ServeHTTP(resp, req)
 		}),
 	}
-}
+}*/
 
 func serveServer(server *http.Server, listener net.Listener, name string, errChan chan error) {
 	go func() {
