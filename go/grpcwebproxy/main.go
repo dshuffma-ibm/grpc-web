@@ -96,9 +96,10 @@ func buildServer(handler http.Handler) *http.Server {
 	return &http.Server{
 		WriteTimeout: *flagHttpMaxWriteTimeout,
 		ReadTimeout:  *flagHttpMaxReadTimeout,
-		Handler: http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		/*Handler: http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 			wrappedGrpc.ServeHTTP(resp, req)
-		}),
+		}),*/
+		Handler:      handler,
 	}
 }
 /*
