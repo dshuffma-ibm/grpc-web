@@ -91,7 +91,8 @@ func main() {
 	// TODO(mwitkow): Add graceful shutdown.
 }
 
-func buildServer(wrappedGrpc *grpcweb.WrappedGrpcServer) *http.Server {
+//func buildServer(wrappedGrpc *grpcweb.WrappedGrpcServer) *http.Server {
+func buildServer(handler http.Handler) *http.Server {
 	return &http.Server{
 		WriteTimeout: *flagHttpMaxWriteTimeout,
 		ReadTimeout:  *flagHttpMaxReadTimeout,
