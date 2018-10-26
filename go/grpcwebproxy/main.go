@@ -96,7 +96,7 @@ func main() {
 
 func sayWhere(w http.ResponseWriter, r *http.Request) {
 	message := r.URL.Path
-	message = "Hello1 " + flagBindAddr
+	message = "Hello1 " + *flagBindAddr
 	w.Write([]byte(message))
 }
 
