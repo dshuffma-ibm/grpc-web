@@ -75,6 +75,9 @@ func main() {
 		debugServer := buildServer(http.DefaultServeMux)
 		http.Handle("/", wrappedGrpc)
 		http.Handle("/metrics", promhttp.Handler())
+		http.HandleFunc("/where", sayWhere)
+		http.HandleFunc("/where2", sayWhere)
+
 		debugListener := buildListenerOrFail("http", *flagHttpPort)
 		serveServer(debugServer, debugListener, "http", errChan)
 	}
@@ -89,6 +92,18 @@ func main() {
 
 	<-errChan
 	// TODO(mwitkow): Add graceful shutdown.
+}
+
+func sayWhere(w http.ResponseWriter, r *http.Request) {
+	message := r.URL.Path
+	message = "Hello1 " + flagBindAddr
+	w.Write([]byte(message))
+}
+
+func sayWhere2(w http.ResponseWriter, r *http.Request) {
+	message := r.URL.Path
+	message = "Hello2"
+	w.Write([]byte(message))
 }
 
 //func buildServer(wrappedGrpc *grpcweb.WrappedGrpcServer) *http.Server {
