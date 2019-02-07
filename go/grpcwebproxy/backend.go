@@ -100,7 +100,6 @@ func dialBackendOrFail() *grpc.ClientConn {
 	} else {
 		opt = append(opt, grpc.WithInsecure())
 	}
-	opt = append(opt, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(*flagMaxCallRecvMsgSize)))
 
 	// keepalive options
 	var kap keepalive.ClientParameters
