@@ -2,6 +2,7 @@ const path = require('path');
 
 const LIB_BASE_CONFIG = {
   entry: "./src/index.ts",
+  mode: "production",
   module: {
     rules: [{
       test: /\.ts?$/,
@@ -22,6 +23,7 @@ module.exports = [{
       filename: `grpc-web-client.js`,
       path: DIST_DIR,
       libraryTarget: 'commonjs',
+      globalObject: 'this',
     }
   },
   {
@@ -31,6 +33,7 @@ module.exports = [{
       filename: `grpc-web-client.umd.js`,
       path: DIST_DIR,
       libraryTarget: 'umd',
+      globalObject: 'this',
     }
   },
 ];

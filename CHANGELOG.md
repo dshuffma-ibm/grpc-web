@@ -1,3 +1,51 @@
+## 0.11.0
+### Breaking changes
+* Server: Revert changes to flusher interface which accidentally introduced a recursive call to `Flush()`. [@johanbrandhorst](https://github.com/johanbrandhorst) in [#527](https://github.com/improbable-eng/grpc-web/pull/527)
+
+## 0.10.0
+### Breaking Changes
+* Server: Check flusher interface before calling Flush. [@mangas](https://github.com/mangas) in [#479](https://github.com/improbable-eng/grpc-web/pull/479)
+* Server: Remove `CloseNotify`. [@mangas](https://github.com/mangas) in [#478](https://github.com/improbable-eng/grpc-web/pull/478)
+* Client: Set Content-Length header in NodeHTTPTransport to disable chunked encoding. [@MichaelAquilina](https://github.com/MichaelAquilina) in [#427](https://github.com/improbable-eng/grpc-web/pull/427)
+* Server: Update grpc-go, golang/protobuf dependencies. [@johanbrandhorst](https://github.com/johanbrandhorst) in [#395](https://github.com/improbable-eng/grpc-web/pull/395)
+
+### Other Changes
+* Server: Add `grpc-status` & `grpc-message` as exposed headers. [@Globegitter](https://github.com/Globegitter) in [#489](https://github.com/improbable-eng/grpc-web/pull/489)
+
+## 0.9.6
+### Other Changes
+* Server: Allow non root resources. [@mangas](https://github.com/mangas) in [#454](https://github.com/improbable-eng/grpc-web/pull/454)
+* Client: Fix aborting requests from within a web-worker context. [@midan888](https://github.com/midan888) in [#443](https://github.com/improbable-eng/grpc-web/pull/443)
+
+## 0.9.4
+### Other Changes
+* Client: Fix broken v0.9.3 release (client binaries were not rebuilt prior to npm publish)
+
+## 0.9.3 (broken)
+### Other Changes
+* Client: Added grpc-web-fake-transport package.
+* Client: Fix global definition in grpc-web UMD build which prevented it from working from within a WebWorker context. [@midan888](https://github.com/midan888) in [#411](https://github.com/improbable-eng/grpc-web/pull/411)
+
+## 0.9.2
+### Other Changes
+* Server: Remove `content-length` response header. [@LeonSha](https://github.com/LeonSha) in [#385](https://github.com/improbable-eng/grpc-web/pull/385)
+* Server: Don't block on writing to the close notify channel. [@devnev](https://github.com/devnev) in [#403](https://github.com/improbable-eng/grpc-web/pull/403)
+* Documentation: Remove reference to specific release version in grpcwebproxy README. [@l4u](https://github.com/l4u) in [#370](https://github.com/improbable-eng/grpc-web/pull/370)
+* Documentation: Fix up problems present in the `grpc-web-react-example` project. [@atecce](https://github.com/atecce) in [#360](https://github.com/improbable-eng/grpc-web/pull/360)
+* Documentation: Updated the installation instructions of grpcwebproxy. [@enmasse](https://github.com/enmasse) in [#399](https://github.com/improbable-eng/grpc-web/pull/399)
+
+## 0.9.1
+### Other Changes
+* Server: Ensure headers from wrapped server are forwarded appropriately. [@danilvpetrov](https://github.com/danilvpetrov) in [#359](https://github.com/improbable-eng/grpc-web/pull/359)
+
+## 0.9.0
+### Breaking Changes
+* Server: Deny CORS Requests by Default. [@jonny-improbable](https://github.com/jonny-improbable) in [#158](https://github.com/improbable-eng/grpc-web/pull/158)
+  * By default both the grpcweb in-process proxy and the standalone grpcwebproxy binary will deny any requests that come from (sub)domains that differ from that which the server is hosted on. See related docs for the in-process proxy [here](https://github.com/improbable-eng/grpc-web/tree/0ce3b686ebd74ae0e4b494d0f983328eb7a900e6/go/grpcweb#func--withwebsocketoriginfunc) and for the standalone grpcwebproxy [here](https://github.com/improbable-eng/grpc-web/tree/0ce3b686ebd74ae0e4b494d0f983328eb7a900e6/go/grpcwebproxy#configuring-cors-for-http-and-websocket-connections). 
+
+### Other Changes
+* Server: Support client certs for backend connections. [@[mastersingh24](/https://github.com/mastersingh24)] in [#333](https://github.com/improbable-eng/grpc-web/pull/333)  
+
 ## 0.8.0
 ### Breaking Changes
 * Scoped npm package under the @improbable-eng org; consumers should now `npm install @improbable-eng/grpc-web`.

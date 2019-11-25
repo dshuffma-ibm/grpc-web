@@ -3,7 +3,7 @@
     "alwaysStrict": true,
     "sourceMap": true,
     "declaration": true,
-    "declarationDir": "./dist/typings",
+    "declarationDir": "lib",
     "target": "es5",
     "removeComments": true,
     "noImplicitReturns": true,
@@ -13,7 +13,7 @@
     "strictNullChecks": true,
     "stripInternal": true,
     "noFallthroughCasesInSwitch": true,
-    "outDir": "dist",
+    "outDir": "lib",
     "noEmitOnError": true
   },
   "types": [
@@ -23,6 +23,7 @@
     "src"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "**/*.spec.ts"
   ]
 }
