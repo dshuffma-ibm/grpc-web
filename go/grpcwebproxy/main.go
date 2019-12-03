@@ -18,7 +18,7 @@ import (
 	"github.com/dshuffma-ibm/grpc-web/go/grpcweb"
 	"github.com/mwitkow/go-conntrack"
 	"github.com/mwitkow/grpc-proxy/proxy"
-	//"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"golang.org/x/net/context"
@@ -79,75 +79,106 @@ func main() {
 		logrus.Fatalf("Both run_http_server and run_tls_server are set to false. At least one must be enabled for grpcweb proxy to function correctly.")
 	}
 
+	var theSettings Settings = buildSettings();
+	jsonData, _ := json.Marshal(theSettings)
+	logrus.Printf("version: %s", theSettings.Version)
+	logrus.Printf("grpc web proxy configuration settings: %s", jsonData)
+
 	http.Handle("/", wrappedGrpc)
 	http.HandleFunc("/settings", leakSettings)
 
 	if *runHttpServer {
 		// Debug server.
 		debugServer := buildServer(http.DefaultServeMux)
-		//http.Handle("/metrics", promhttp.Handler())
-
+		http.Handle("/metrics", promhttp.Handler())
 		debugListener := buildListenerOrFail("http", *flagHttpPort)
 		serveServer(debugServer, debugListener, "http", errChan)
 	}
 
 	if *runTlsServer {
 		// tls server.
-		/*servingServer := buildServer(wrappedGrpc)
-		servingListener := buildListenerOrFail("http", *flagHttpTlsPort)
-		servingListener = tls.NewListener(servingListener, buildServerTlsOrFail())
-		serveServer(servingServer, servingListener, "http_tls", errChan)
-		*/
-
-		// tls server.
+		//servingServer := buildServer(wrappedGrpc)
 		servingServer := buildServer(http.DefaultServeMux)
-
 		servingListener := buildListenerOrFail("http", *flagHttpTlsPort)
 		servingListener = tls.NewListener(servingListener, buildServerTlsOrFail())
 		serveServer(servingServer, servingListener, "http_tls", errChan)
 	}
-
-
 
 	<-errChan
 	// TODO(mwitkow): Add graceful shutdown.
 }
 
-func leakSettings(w http.ResponseWriter, r *http.Request) {
-	type Settings struct {
-		BackendAddr string `json:"backend_addr"`
-		BackendTLS bool `json:"backend_tls"`
-		BackendTLSNoVerify bool `json:"backend_tls_no_verify"`
-		BackendMaxCallRecvMsgSize int `json:"backend_max_call_recv_msg_size_bytes"`
-		flagBackendTlsClientCert string `json:"backend_client_tls_cert_file"`
-		ExternalAddr string `json:"external_addr"`
-		RunTLSServer bool `json:"run_tls_server"`
-		RunHTTPServer bool `json:"run_http_server"`
-		UseWebSockets bool `json:"use_websockets"`
-		ServerHttpMaxWriteTimeout time.Duration `json:"server_http_max_write_timeout_ns"`
-		ServerHttpMaxReadTimeout time.Duration `json:"server_http_max_read_timeout_ns"`
-		KeepAliveClientInterval time.Duration `json:"keep_alive_client_interval_ns"`
-		KeepAliveClientTimeout time.Duration `json:"keep_alive_client_timeout_ns"`
-	}
+// build the settings to print out later
+type Settings struct {
+	// defined in main.go
+	BackendAddr string `json:"backend_addr"`
+	BackendTLS bool `json:"backend_tls"`
+	BackendTLSNoVerify bool `json:"backend_tls_noverify"`
+	FlagBackendTlsClientCert string `json:"backend_client_tls_cert_file"`
+	BackendMaxCallRecvMsgSize int `json:"backend_max_call_recv_msg_size_bytes"`
+	FlagBackendTlsCa []string `json:"backend_tls_ca_files"`
+	FlagBackendDefaultAuthority string `json:"backend_default_authority"`
+	KeepAliveClientInterval time.Duration `json:"keep_alive_client_interval_ns"`
+	KeepAliveClientTimeout time.Duration `json:"keep_alive_client_timeout_ns"`
+	ExternalAddr string `json:"external_addr"`
+	FlagBackendBackoffMaxDelay time.Duration `json:"flag_backend_backoff_max_delay_ns"`
+
+	// defined in backend.go
+	FlagBindAddr string `json:"server_bind_address"`
+	FlagAllowAllOrigins bool `json:"allow_all_origins"`
+	FlagAllowedOrigins []string `json:"allowed_origins"`
+	RunHTTPServer bool `json:"run_http_server"`
+	RunTLSServer bool `json:"run_tls_server"`
+	UseWebSockets bool `json:"use_websockets"`
+	ServerHttpMaxWriteTimeout time.Duration `json:"server_http_max_write_timeout_ns"`
+	ServerHttpMaxReadTimeout time.Duration `json:"server_http_max_read_timeout_ns"`
+
+	// defined in server_tls.go
+	FlagTlsServerCert string `json:"server_tls_cert_file"`
+	FlagTlsServerClientCertVerification string `json:"server_tls_client_cert_verification"`
+	FlagTlsServerClientCAFiles []string `json:"server_tls_client_ca_files"`
+
+	// version of the grpc web proxy, hard coded
+	Version string `json:"version"`
+}
+func buildSettings() Settings{
 	var theSettings Settings
 	theSettings.BackendAddr = *flagBackendHostPort
 	theSettings.BackendTLS = *flagBackendIsUsingTls
 	theSettings.BackendTLSNoVerify = *flagBackendTlsNoVerify
+	theSettings.FlagBackendTlsClientCert = *flagBackendTlsClientCert
 	theSettings.BackendMaxCallRecvMsgSize = *flagMaxCallRecvMsgSize
-	theSettings.RunTLSServer = *runTlsServer
-	theSettings.RunHTTPServer = *runHttpServer
-	theSettings.UseWebSockets = *useWebsockets
-	theSettings.ServerHttpMaxWriteTimeout = *flagHttpMaxWriteTimeout
-	theSettings.ServerHttpMaxReadTimeout = *flagHttpMaxReadTimeout
+	theSettings.FlagBackendTlsCa = *flagBackendTlsCa
+	theSettings.FlagBackendDefaultAuthority = *flagBackendDefaultAuthority
 	theSettings.KeepAliveClientInterval = *flagKeepAliveClientInterval
 	theSettings.KeepAliveClientTimeout = *flagKeepAliveClientTimeout
 	theSettings.ExternalAddr = *flagExternalHostPort
-	theSettings.flagBackendTlsClientCert = *flagBackendTlsClientCert
+	theSettings.FlagBackendBackoffMaxDelay = *flagBackendBackoffMaxDelay
+
+	theSettings.FlagBindAddr = *flagBindAddr
+	theSettings.FlagAllowAllOrigins = *flagAllowAllOrigins
+	theSettings.FlagAllowedOrigins = *flagAllowedOrigins
+	theSettings.RunHTTPServer = *runHttpServer
+	theSettings.RunTLSServer = *runTlsServer
+	theSettings.UseWebSockets = *useWebsockets
+	theSettings.ServerHttpMaxWriteTimeout = *flagHttpMaxWriteTimeout
+	theSettings.ServerHttpMaxReadTimeout = *flagHttpMaxReadTimeout
+
+	theSettings.FlagTlsServerCert = *flagTlsServerCert
+	theSettings.FlagTlsServerClientCertVerification = *flagTlsServerClientCertVerification
+	theSettings.FlagTlsServerClientCAFiles = *flagTlsServerClientCAFiles
+
+	theSettings.Version = "v0.11.0-1"
 
 	if theSettings.ExternalAddr == "" {
 		theSettings.ExternalAddr = theSettings.BackendAddr // if external doesn't exist, show internal address
 	}
+	return theSettings;
+}
 
+// send current settings to http output
+func leakSettings(w http.ResponseWriter, r *http.Request) {
+	var theSettings Settings = buildSettings();
 	jsonData, _ := json.Marshal(theSettings)
 
 	w.Header().Set("Content-Type", "application/json")
