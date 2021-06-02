@@ -3,7 +3,10 @@
 
 package grpcweb
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 var (
 	defaultOptions = &options{
@@ -19,8 +22,10 @@ type options struct {
 	corsForRegisteredEndpointsOnly bool
 	originFunc                     func(origin string) bool
 	enableWebsockets               bool
+	websocketPingInterval          time.Duration
 	websocketOriginFunc            func(req *http.Request) bool
 	allowNonRootResources          bool
+	endpointsFunc                  *func() []string
 }
 
 func evaluateOptions(opts []Option) *options {
@@ -62,6 +67,22 @@ func WithCorsForRegisteredEndpointsOnly(onlyRegistered bool) Option {
 	}
 }
 
+// WithEndpointsFunc allows for providing a custom function that provides all supported endpoints for use when the
+// when `WithCorsForRegisteredEndpoints` option` is not set to false (i.e. the default state).
+//
+// When wrapping a http.Handler with `WrapHttpHandler`, failing to specify the `WithEndpointsFunc` option will cause
+// all CORS requests to result in a 403 error for websocket requests (if websockets are enabled) or be passed to the
+// handler http.Handler or grpc.Server backend (i.e. as if it wasn't wrapped).
+//
+// When wrapping grpc.Server with `WrapGrpcServer`, registered endpoints will be automatically detected, however if this
+// `WithEndpointsFunc` option is specified, the server will not be queried for its endpoints and this function will
+// be called instead.
+func WithEndpointsFunc(endpointsFunc func() []string) Option {
+	return func(o *options) {
+		o.endpointsFunc = &endpointsFunc
+	}
+}
+
 // WithAllowedRequestHeaders allows for customizing what gRPC request headers a browser can add.
 //
 // This is controlling the CORS pre-flight `Access-Control-Allow-Headers` method and applies to *all* gRPC handlers.
@@ -89,6 +110,15 @@ func WithAllowedRequestHeaders(headers []string) Option {
 func WithWebsockets(enableWebsockets bool) Option {
 	return func(o *options) {
 		o.enableWebsockets = enableWebsockets
+	}
+}
+
+// WithWebsocketPingInterval enables websocket keepalive pinging with the configured timeout.
+//
+// The default behaviour is to disable websocket pinging.
+func WithWebsocketPingInterval(websocketPingInterval time.Duration) Option {
+	return func(o *options) {
+		o.websocketPingInterval = websocketPingInterval
 	}
 }
 

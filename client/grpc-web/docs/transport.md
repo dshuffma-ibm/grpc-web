@@ -43,7 +43,7 @@ It's great that we have more than one choice when it comes to Web Browsers, howe
 
 * gRPC offers four categories of request: unary, server-streaming, client-streaming and bi-directional. Due to limitations of the Browser HTTP primitives (`fetch` and `XMLHttpRequest`), the HTTP/2-based transports provided by `@improbable-eng/grpc-web` can only support unary and server-streaming requests. Attempts to invoke either client-streaming or bi-directional endpoints will result in failure.
 * Older versions of Safari (<7) and all versions of Internet Explorer do not provide an efficient way to stream data from a server; this will result in the entire response of a gRPC client-stream being buffered into memory which can cause performance and stability issues for end-users. 
-* Microsoft Edge does not propagate the cancellation of requests to the server; which can result in memory/process leaks on your server. Track this issue for status.
+* Microsoft Edge (<16) does not propagate the cancellation of requests to the server; which can result in memory/process leaks on your server. Track [this issue](https://github.com/improbable-eng/grpc-web/issues/125) for status.
 
 Note that the [Socket-based Transports](#socket-based-transports) alleviate the above issues.
 
@@ -82,9 +82,9 @@ interface XhrTransportInit {
 The `XhrTransport` will automatically detect the Firefox Browser v21+ and make use of the `moz-chunked-arraybuffer` feature which provides enables efficient server-streaming. All other browsers will fall-back to buffering the entire response in memory for the lifecycle of the stream (see [known limitations of HTTP/2-based transports](#http/2-based-transports)).
 
 ### Socket-based Transports
-Browser based HTTP/2 transports have a number of limitations and caveats. We can work around all of these, including support for client-streams and bi-directional streams, by utilising the browser's native [`WebSocket` API](). Note that the `grpc-web-proxy` must be [configured to enable WebSocket support](../../go/grpcwebproxy/README.md#enabling-websocket-transport). 
+Browser based HTTP/2 transports have a number of limitations and caveats. We can work around all of these, including support for client-streams and bi-directional streams, by utilising the browser's native [`WebSocket` API](). Note that the `grpc-web-proxy` must be [configured to enable WebSocket support](../../../go/grpcwebproxy/README.md#enabling-websocket-transport). 
 
 ## Alternative Transports
 Custom transports can be created by implementing the `Transport` interface; the following transports exist as npm packages which you can import and make use of:
 
-* [grpc-web-node-http-transport](http://npmjs.com/package/grpc-web-node-http-transport) - Enables the use of grpc-web in NodeJS (ie: non-browser) environments.
+* [@improbable-eng/grpc-web-node-http-transport](https://www.npmjs.com/package/@improbable-eng/grpc-web-node-http-transport) - Enables the use of grpc-web in NodeJS (ie: non-browser) environments.

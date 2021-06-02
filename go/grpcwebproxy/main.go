@@ -35,11 +35,13 @@ var (
 
 	flagAllowAllOrigins = pflag.Bool("allow_all_origins", false, "allow requests from any origin.")
 	flagAllowedOrigins  = pflag.StringSlice("allowed_origins", nil, "comma-separated list of origin URLs which are allowed to make cross-origin requests.")
+	flagAllowedHeaders  = pflag.StringSlice("allowed_headers", []string{}, "comma-separated list of headers which are allowed to propagate to the gRPC backend.")
 
 	runHttpServer = pflag.Bool("run_http_server", true, "whether to run HTTP server")
 	runTlsServer  = pflag.Bool("run_tls_server", true, "whether to run TLS server")
 
-	useWebsockets = pflag.Bool("use_websockets", false, "whether to use beta websocket transport layer")
+	useWebsockets         = pflag.Bool("use_websockets", false, "whether to use beta websocket transport layer")
+	websocketPingInterval = pflag.Duration("websocket_ping_interval", 0, "whether to use websocket keepalive pinging. Only used when using websockets. Configured interval must be >= 1s.")
 
 	flagHttpMaxWriteTimeout = pflag.Duration("server_http_max_write_timeout", 10*time.Second, "HTTP server config, max write duration.")
 	flagHttpMaxReadTimeout  = pflag.Duration("server_http_max_read_timeout", 10*time.Second, "HTTP server config, max read duration.")
@@ -47,6 +49,12 @@ var (
 
 func main() {
 	pflag.Parse()
+	for _, flag := range pflag.Args() {
+		if flag == "true" || flag == "false" {
+			logrus.Fatal("Boolean flags should be set using --flag=false, --flag=true or --flag (which is short for --flag=true). You cannot use --flag true or --flag false.")
+		}
+		logrus.Fatal("Unknown argument: " + flag)
+	}
 
 	logrus.SetOutput(os.Stdout)
 	logEntry := logrus.NewEntry(logrus.StandardLogger())
@@ -72,7 +80,22 @@ func main() {
 			grpcweb.WithWebsockets(true),
 			grpcweb.WithWebsocketOriginFunc(makeWebsocketOriginFunc(allowedOrigins)),
 		)
+		if *websocketPingInterval >= time.Second {
+			logrus.Infof("websocket keepalive pinging enabled, the timeout interval is %s", websocketPingInterval.String())
+		}
+		options = append(
+			options,
+			grpcweb.WithWebsocketPingInterval(*websocketPingInterval),
+		)
 	}
+
+	if len(*flagAllowedHeaders) > 0 {
+		options = append(
+			options,
+			grpcweb.WithAllowedRequestHeaders(*flagAllowedHeaders),
+		)
+	}
+
 	wrappedGrpc := grpcweb.WrapServer(grpcServer, options...)
 
 	if !*runHttpServer && !*runTlsServer {
@@ -218,6 +241,10 @@ func buildGrpcProxyServer(logger *logrus.Entry) *grpc.Server {
 		outCtx, _ := context.WithCancel(ctx)
 		mdCopy := md.Copy()
 		delete(mdCopy, "user-agent")
+		// If this header is present in the request from the web client,
+		// the actual connection to the backend will not be established.
+		// https://github.com/improbable-eng/grpc-web/issues/568
+		delete(mdCopy, "connection")
 		outCtx = metadata.NewOutgoingContext(outCtx, mdCopy)
 		return outCtx, backendConn, nil
 	}

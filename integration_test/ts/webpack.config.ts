@@ -12,7 +12,7 @@ module.exports = {
       "process.env": JSON.stringify(process.env),
     }),
   ],
-  devtool: "inline-source-map",
+  devtool: "source-map",
   module: {
     rules: [
       {
@@ -23,13 +23,18 @@ module.exports = {
       },
       {
         test: /\.ts$/,
-        include: [/src/, /_proto/, /suiteUtils/],
+        include: [/src/, /_proto/],
         exclude: /node_modules/,
         loader: "ts-loader"
       }
     ]
   },
   resolve: {
+    fallback: {
+      "http": false,
+      "https": false,
+      "url": false,
+    },
     extensions: [".ts", ".js"]
   }
 };
