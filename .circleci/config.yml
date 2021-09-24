@@ -3,12 +3,13 @@ version: 2.1
 executors:
   test-executor:
     docker:
-      - image: circleci/golang:1.15.2
+      - image: circleci/golang:1.16.2
         auth:
           username: mydockerhub-user
           password: $DOCKERHUB_PASSWORD
     environment:
-      PROTOTOOL_VER: 1.10.0
+      BUF_VER: 0.40.0
+      PROTOC_VER: 3.15.6
     working_directory: /go/src/github.com/improbable-eng/grpc-web
 
 jobs:
@@ -23,14 +24,13 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get install unzip
-      - run: . ./install-prototool.sh
+      - run: . ./install-buf.sh
+      - run: . ./install-protoc.sh
       - run: echo 'export GOBIN=/go/bin' >> $BASH_ENV
-      - run: go get -u golang.org/x/tools/cmd/goimports
-      - run: go get -u github.com/robertkrimen/godocdown/godocdown
-      - run: curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-      - run: dep ensure
-      - run: go install ./vendor/github.com/golang/protobuf/protoc-gen-go
-      - run: export PATH=/go/src/github.com/improbable-eng/grpc-web/protobuf/bin:$PATH
+      - run: go get golang.org/x/tools/cmd/goimports
+      - run: go get github.com/robertkrimen/godocdown/godocdown
+      - run: go mod tidy # removes dependencies added by tool installations
+      - run: go install github.com/golang/protobuf/protoc-gen-go
       - run:
           command: |
             set +e
@@ -41,6 +41,8 @@ jobs:
             echo 'export NVM_DIR=$HOME/.nvm' >> $BASH_ENV
             echo 'source $NVM_DIR/nvm.sh' >> $BASH_ENV
       - run: npm install
+      # Verify test files are correctly generated
+      - run: cd integration_test && npm run build:proto && git diff --exit-code
       # Lint
       - run: ./lint-all.sh
       # Unit Tests
@@ -92,19 +94,19 @@ workflows:
           matrix:
             parameters:
               browser-params:
-                - BROWSER=firefox80_win
-                - BROWSER=firefox39_win
-                - BROWSER=firefox38_win
-                - BROWSER=firefox21_win
-                - BROWSER=chrome_85
+                - BROWSER=firefox86_win
+                - BROWSER=firefox39_win DISABLE_WEBSOCKET_TESTS=true
+                - BROWSER=firefox38_win DISABLE_WEBSOCKET_TESTS=true
+                - BROWSER=chrome_89
                 - BROWSER=chrome_52
                 - BROWSER=chrome_43
                 - BROWSER=chrome_42
                 - BROWSER=chrome_41
-                - BROWSER=edge85_win
+                - BROWSER=edge88_win
                 - BROWSER=edge16_win
                 - BROWSER=edge14_win
                 - BROWSER=edge13_win
+                - BROWSER=safari14 SC_SSL_BUMPING=true DISABLE_WEBSOCKET_TESTS=true
                 - BROWSER=safari13_1 SC_SSL_BUMPING=true DISABLE_WEBSOCKET_TESTS=true
                 - BROWSER=safari12_1 SC_SSL_BUMPING=true DISABLE_WEBSOCKET_TESTS=true
                 - BROWSER=safari11_1 SC_SSL_BUMPING=true DISABLE_WEBSOCKET_TESTS=true

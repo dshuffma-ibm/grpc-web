@@ -20,6 +20,7 @@ separate http.Server that serves over TLS:
     tlsHttpServer.Handler = http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
     	if wrappedGrpc.IsGrpcWebRequest(req) {
     		wrappedGrpc.ServeHTTP(resp, req)
+    		return
     	}
     	// Fall back to other servers.
     	http.DefaultServeMux.ServeHTTP(resp, req)
@@ -174,6 +175,16 @@ WithWebsockets allows for handling grpc-web requests of websockets - enabling
 bidirectional requests.
 
 The default behaviour is false, i.e. to disallow websockets
+
+#### func  WithWebsocketsMessageReadLimit
+
+```go
+func WithWebsocketsMessageReadLimit(websocketReadLimit int64) Option
+```
+WithWebsocketsMessageReadLimit sets the maximum message read limit on the
+underlying websocket.
+
+The default message read limit is 32769 bytes
 
 #### type WrappedGrpcServer
 

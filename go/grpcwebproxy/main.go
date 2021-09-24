@@ -22,7 +22,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"golang.org/x/net/context"
-	_ "golang.org/x/net/trace" // register in DefaultServerMux
+	"golang.org/x/net/trace" // register in DefaultServerMux
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
@@ -42,9 +42,12 @@ var (
 
 	useWebsockets         = pflag.Bool("use_websockets", false, "whether to use beta websocket transport layer")
 	websocketPingInterval = pflag.Duration("websocket_ping_interval", 0, "whether to use websocket keepalive pinging. Only used when using websockets. Configured interval must be >= 1s.")
+	websocketReadLimit    = pflag.Int64("websocket_read_limit", 0, "sets the maximum message read limit on the underlying websocket. The default message read limit is 32769 bytes.")
 
 	flagHttpMaxWriteTimeout = pflag.Duration("server_http_max_write_timeout", 10*time.Second, "HTTP server config, max write duration.")
 	flagHttpMaxReadTimeout  = pflag.Duration("server_http_max_read_timeout", 10*time.Second, "HTTP server config, max read duration.")
+
+	enableRequestDebug = pflag.Bool("enable_request_debug", false, "whether to enable (/debug/requests) and connection(/debug/events) monitoring; also controls prometheus monitoring (/metrics)")
 )
 
 func main() {
@@ -83,6 +86,10 @@ func main() {
 		if *websocketPingInterval >= time.Second {
 			logrus.Infof("websocket keepalive pinging enabled, the timeout interval is %s", websocketPingInterval.String())
 		}
+		if *websocketReadLimit > 0 {
+			options = append(options, grpcweb.WithWebsocketsMessageReadLimit(*websocketReadLimit))
+		}
+
 		options = append(
 			options,
 			grpcweb.WithWebsocketPingInterval(*websocketPingInterval),

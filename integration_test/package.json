@@ -5,7 +5,7 @@
   "scripts": {
     "clean": "rm -rf ts/build && rm -rf ts/build-node",
     "build:testserver": "cd go && go build -o ./build/testserver ./testserver/testserver.go",
-    "build:proto": "cd proto && prototool generate",
+    "build:proto": "cd proto && buf generate",
     "build:ts": "cd ts && rm -rf build && webpack-cli",
     "build:dev": "cd ts && rm -rf build && webpack-cli --watch",
     "build:node": "cd ts && rm -rf build-node && (cd node-src && tsc) && (cp -R _proto build-node/integration_test/ts)",
@@ -13,7 +13,7 @@
     "start:ci": "./test-ci.sh",
     "start": "./test.sh",
     "test:browsers": "./run-with-tunnel.sh ./run-with-testserver.sh karma start ./karma.conf.ts --single-run",
-    "test:node": "./run-with-testserver.sh jasmine ts/build-node/integration_test/ts/node-src/node.spec.js",
+    "test:node": "BROWSER=nodejs ./run-with-testserver.sh jasmine ts/build-node/integration_test/ts/node-src/node.spec.js",
     "test:dev": "npm run build && ./run-with-testserver.sh karma start ./karma.conf.ts"
   },
   "license": "none",
@@ -39,7 +39,7 @@
     "colors": "^1.4.0",
     "jasmine": "3.6.4",
     "jasmine-core": "3.6.0",
-    "karma": "6.0.3",
+    "karma": "6.2.0",
     "karma-jasmine": "4.0.1",
     "karma-junit-reporter": "2.0.1",
     "karma-mocha-reporter": "2.2.5",
