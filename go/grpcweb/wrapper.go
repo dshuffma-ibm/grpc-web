@@ -70,9 +70,9 @@ func wrapGrpc(options []Option, handler http.Handler, endpointsFunc func() []str
 	corsWrapper := cors.New(cors.Options{
 		AllowOriginFunc:  opts.originFunc,
 		AllowedHeaders:   allowedHeaders,
-		ExposedHeaders:   nil,                                 // make sure that this is *nil*, otherwise the WebResponse overwrite will not work.
-		AllowCredentials: true,                                // always allow credentials, otherwise :authorization headers won't work
-		MaxAge:           int(10 * time.Minute / time.Second), // make sure pre-flights don't happen too often (every 5s for Chromium :( )
+		ExposedHeaders:   nil,  // make sure that this is *nil*, otherwise the WebResponse overwrite will not work.
+		AllowCredentials: true, // always allow credentials, otherwise :authorization headers won't work
+		MaxAge:           int(opts.corsMaxAge.Seconds()),
 	})
 	websocketOriginFunc := opts.websocketOriginFunc
 	if websocketOriginFunc == nil {
@@ -120,7 +120,7 @@ func (w *WrappedGrpcServer) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 				return
 			}
 		}
-		resp.WriteHeader(403)
+		resp.WriteHeader(http.StatusForbidden)
 		_, _ = resp.Write(make([]byte, 0))
 		return
 	}
@@ -133,9 +133,21 @@ func (w *WrappedGrpcServer) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 }
 
 // IsGrpcWebSocketRequest determines if a request is a gRPC-Web request by checking that the "Sec-Websocket-Protocol"
-// header value is "grpc-websockets"
+// header value contains "grpc-websockets"
 func (w *WrappedGrpcServer) IsGrpcWebSocketRequest(req *http.Request) bool {
-	return strings.ToLower(req.Header.Get("Upgrade")) == "websocket" && strings.ToLower(req.Header.Get("Sec-Websocket-Protocol")) == "grpc-websockets"
+	if strings.ToLower(req.Header.Get("Upgrade")) != "websocket" {
+		return false
+	}
+
+	for _, subproto := range req.Header.Values("Sec-Websocket-Protocol") {
+		for _, token := range strings.Split(subproto, ",") {
+			token = strings.TrimSpace(token)
+			if strings.EqualFold(token, "grpc-websockets") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // HandleGrpcWebRequest takes a HTTP request that is assumed to be a gRPC-Web request and wraps it with a compatibility
@@ -144,7 +156,7 @@ func (w *WrappedGrpcServer) IsGrpcWebSocketRequest(req *http.Request) bool {
 func (w *WrappedGrpcServer) HandleGrpcWebRequest(resp http.ResponseWriter, req *http.Request) {
 	intReq, isTextFormat := hackIntoNormalGrpcRequest(req)
 	intResp := newGrpcWebResponse(resp, isTextFormat)
-	req.URL.Path = w.endpointFunc(req)
+	intReq.URL.Path = w.endpointFunc(intReq)
 	w.handler.ServeHTTP(intResp, intReq)
 	intResp.finishRequest(req)
 }
@@ -157,6 +169,7 @@ func (w *WrappedGrpcServer) HandleGrpcWebsocketRequest(resp http.ResponseWriter,
 	wsConn, err := websocket.Accept(resp, req, &websocket.AcceptOptions{
 		InsecureSkipVerify: true, // managed by ServeHTTP
 		Subprotocols:       []string{"grpc-websockets"},
+		CompressionMode:    w.opts.websocketCompressionMode,
 	})
 	if err != nil {
 		grpclog.Errorf("Unable to upgrade websocket request: %v", err)
@@ -206,12 +219,13 @@ func (w *WrappedGrpcServer) HandleGrpcWebsocketRequest(resp http.ResponseWriter,
 	req.Body = wrappedReader
 	req.Method = http.MethodPost
 	req.Header = headers
+	req.URL.Path = w.endpointFunc(req)
 
 	interceptedRequest, isTextFormat := hackIntoNormalGrpcRequest(req.WithContext(ctx))
 	if isTextFormat {
 		grpclog.Errorf("web socket text format requests not yet supported")
 	}
-	req.URL.Path = w.endpointFunc(req)
+
 	w.handler.ServeHTTP(respWriter, interceptedRequest)
 }
 

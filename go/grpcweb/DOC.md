@@ -15,6 +15,7 @@ protocol specification.
 Here's an example of how to use it inside an existing gRPC Go server on a
 separate http.Server that serves over TLS:
 
+```go
     grpcServer := grpc.Server()
     wrappedGrpc := grpcweb.WrapServer(grpcServer)
     tlsHttpServer.Handler = http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
@@ -25,7 +26,7 @@ separate http.Server that serves over TLS:
     	// Fall back to other servers.
     	http.DefaultServeMux.ServeHTTP(resp, req)
     })
-
+```
 If you'd like to have a standalone binary, please take a look at `grpcwebproxy`.
 
 ## Usage
@@ -118,6 +119,17 @@ endpoints (e.g. for proxying).
 The default behaviour is `true`, i.e. only allows CORS requests for registered
 endpoints.
 
+#### func  WithCorsMaxAge
+
+```go
+func WithCorsMaxAge(maxAge time.Duration) Option
+```
+WithCorsMaxAge customize the `Access-Control-Max-Age: <delta-seconds>` header
+which controls the cache age for a CORS preflight request that checks to see if
+the CORS protocol is understood.
+
+The default age is 10 minutes.
+
 #### func  WithEndpointsFunc
 
 ```go
@@ -153,6 +165,15 @@ The default behaviour is to deny all requests from remote origins.
 
 The relevant CORS pre-flight docs:
 https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
+
+#### func  WithWebsocketCompressionMode
+
+```go
+func WithWebsocketCompressionMode(compressionMode websocket.CompressionMode) Option
+```
+WithWebsocketCompressionMode sets compression mode for websocket requests
+
+The default mode is CompressionNoContextTakeover
 
 #### func  WithWebsocketOriginFunc
 
@@ -275,7 +296,7 @@ the "content-type" is "application/grpc-web" and that the method is POST.
 func (w *WrappedGrpcServer) IsGrpcWebSocketRequest(req *http.Request) bool
 ```
 IsGrpcWebSocketRequest determines if a request is a gRPC-Web request by checking
-that the "Sec-Websocket-Protocol" header value is "grpc-websockets"
+that the "Sec-Websocket-Protocol" header value contains "grpc-websockets"
 
 #### func (*WrappedGrpcServer) ServeHTTP
 

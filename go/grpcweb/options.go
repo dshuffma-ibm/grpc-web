@@ -6,6 +6,8 @@ package grpcweb
 import (
 	"net/http"
 	"time"
+
+	"nhooyr.io/websocket"
 )
 
 var (
@@ -14,17 +16,21 @@ var (
 		corsForRegisteredEndpointsOnly: true,
 		originFunc:                     func(origin string) bool { return false },
 		allowNonRootResources:          false,
+		corsMaxAge:                     10 * time.Minute,
+		websocketCompressionMode:       websocket.CompressionNoContextTakeover,
 	}
 )
 
 type options struct {
 	allowedRequestHeaders          []string
 	corsForRegisteredEndpointsOnly bool
+	corsMaxAge                     time.Duration
 	originFunc                     func(origin string) bool
 	enableWebsockets               bool
 	websocketPingInterval          time.Duration
 	websocketOriginFunc            func(req *http.Request) bool
 	websocketReadLimit             int64
+	websocketCompressionMode       websocket.CompressionMode
 	allowNonRootResources          bool
 	endpointsFunc                  *func() []string
 }
@@ -65,6 +71,16 @@ func WithOriginFunc(originFunc func(origin string) bool) Option {
 func WithCorsForRegisteredEndpointsOnly(onlyRegistered bool) Option {
 	return func(o *options) {
 		o.corsForRegisteredEndpointsOnly = onlyRegistered
+	}
+}
+
+// WithCorsMaxAge customize the `Access-Control-Max-Age: <delta-seconds>` header which controls the cache age for a CORS preflight
+// request that checks to see if the CORS protocol is understood.
+//
+// The default age is 10 minutes.
+func WithCorsMaxAge(maxAge time.Duration) Option {
+	return func(o *options) {
+		o.corsMaxAge = maxAge
 	}
 }
 
@@ -152,5 +168,14 @@ func WithWebsocketsMessageReadLimit(websocketReadLimit int64) Option {
 func WithAllowNonRootResource(allowNonRootResources bool) Option {
 	return func(o *options) {
 		o.allowNonRootResources = allowNonRootResources
+	}
+}
+
+// WithWebsocketCompressionMode sets compression mode for websocket requests
+//
+// The default mode is CompressionNoContextTakeover
+func WithWebsocketCompressionMode(compressionMode websocket.CompressionMode) Option {
+	return func(o *options) {
+		o.websocketCompressionMode = compressionMode
 	}
 }

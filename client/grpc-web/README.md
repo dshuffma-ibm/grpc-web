@@ -45,11 +45,11 @@ grpc.unary(BookService.GetBook, {
 });
 ```
 
-* Requests can be aborted/cancelled before they complete:
+* Requests can be aborted/closed before they complete:
 
 ```javascript
 const request = grpc.unary(BookService.GetBook, { ... });
-request.cancel();
+request.close();
 ```
 
 ## Available Request Functions
@@ -92,3 +92,4 @@ Refer to [grpc-web-node-http-transport](https://www.npmjs.com/package/@improbabl
 * [Code Generation](docs/code-generation.md)
 * [Concepts](docs/concepts.md)
 * [Transport](docs/transport.md)
+* [Client-side streaming](docs/websocket.md)
