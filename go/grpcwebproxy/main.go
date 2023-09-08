@@ -7,6 +7,7 @@ import (
 	"net/http"
 	_ "net/http/pprof" // register in DefaultServerMux
 	"os"
+	"sync"
 	"time"
 	"encoding/json"
 
@@ -47,7 +48,11 @@ var (
 	flagHttpMaxWriteTimeout = pflag.Duration("server_http_max_write_timeout", 10*time.Second, "HTTP server config, max write duration.")
 	flagHttpMaxReadTimeout  = pflag.Duration("server_http_max_read_timeout", 10*time.Second, "HTTP server config, max read duration.")
 
-	enableRequestDebug = pflag.Bool("enable_request_debug", false, "whether to enable (/debug/requests) and connection(/debug/events) monitoring; also controls prometheus monitoring (/metrics)")
+	enableRequestDebug       = pflag.Bool("enable_request_debug", false, "whether to enable (/debug/requests) and connection(/debug/events) monitoring; also controls prometheus monitoring (/metrics)")
+	enableHealthCheckService = pflag.Bool("enable_health_check_service", false, "whether to enable health checking service on the backend connection")
+	enableHealthEndpoint     = pflag.Bool("enable_health_endpoint", false, "whether to enable health endpoint on the proxy. If enable_health_check_service is set to true the endpoint will serve the status got from backend, otherwise http.StatusOK(200) will be returned")
+	healthEndpointName       = pflag.String("health_endpoint_name", "_health", "health endpoint name to be used (_health by default)")
+	healthServiceName        = pflag.String("health_service_name", "", "health service name to request from backend (\"\" by default, asking for status of all services at once on the backend)")
 )
 
 func main() {
@@ -66,7 +71,9 @@ func main() {
 		logrus.Fatal("Ambiguous --allow_all_origins and --allow_origins configuration. Either set --allow_all_origins=true OR specify one or more origins to whitelist with --allow_origins, not both.")
 	}
 
-	grpcServer := buildGrpcProxyServer(logEntry)
+	backendConn := dialBackendOrFail()
+
+	grpcServer := buildGrpcProxyServer(backendConn, logEntry)
 	errChan := make(chan error)
 
 	allowedOrigins := makeAllowedOrigins(*flagAllowedOrigins)
@@ -236,13 +243,12 @@ func serveServer(server *http.Server, listener net.Listener, name string, errCha
 	}()
 }
 
-func buildGrpcProxyServer(logger *logrus.Entry) *grpc.Server {
+func buildGrpcProxyServer(backendConn *grpc.ClientConn, logger *logrus.Entry) *grpc.Server {
 	// gRPC-wide changes.
 	grpc.EnableTracing = true
 	grpc_logrus.ReplaceGrpcLogger(logger)
 
 	// gRPC proxy logic.
-	backendConn := dialBackendOrFail()
 	director := func(ctx context.Context, fullMethodName string) (context.Context, *grpc.ClientConn, error) {
 		md, _ := metadata.FromIncomingContext(ctx)
 		outCtx, _ := context.WithCancel(ctx)
@@ -255,6 +261,7 @@ func buildGrpcProxyServer(logger *logrus.Entry) *grpc.Server {
 		outCtx = metadata.NewOutgoingContext(outCtx, mdCopy)
 		return outCtx, backendConn, nil
 	}
+
 	// Server with logging and monitoring enabled.
 	return grpc.NewServer(
 		grpc.CustomCodec(proxy.Codec()), // needed for proxy to function.
@@ -327,4 +334,41 @@ type allowedOrigins struct {
 func (a *allowedOrigins) IsAllowed(origin string) bool {
 	_, ok := a.origins[origin]
 	return ok
+}
+
+type healthChecker struct {
+	status int
+	mutex  sync.Mutex
+}
+
+func (h *healthChecker) GetStatus() int {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	return h.status
+}
+
+func (h *healthChecker) setServing(serving bool) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	if serving {
+		h.status = http.StatusOK
+	} else {
+		h.status = http.StatusServiceUnavailable
+	}
+}
+
+// Runs health check on a backend connection for a given service name
+// returns *healthChecker to get status from
+func runHealthChecker(ctx context.Context, backendConn *grpc.ClientConn, service string) *healthChecker {
+	h := new(healthChecker)
+	h.status = http.StatusServiceUnavailable
+
+	go func() {
+		err := grpcweb.ClientHealthCheck(ctx, backendConn, service, h.setServing)
+		if err != nil {
+			logrus.Errorf("%s health check service error: %v", service, err)
+		}
+	}()
+
+	return h
 }
