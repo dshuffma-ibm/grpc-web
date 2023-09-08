@@ -9,7 +9,6 @@ import (
 	"os"
 	"sync"
 	"time"
-	"encoding/json"
 
 	"nhooyr.io/websocket"
 
@@ -25,7 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"golang.org/x/net/context"
-	//"golang.org/x/net/trace" // register in DefaultServerMux
+	"golang.org/x/net/trace" // register in DefaultServerMux
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
@@ -136,26 +135,48 @@ func main() {
 		logrus.Fatalf("Both run_http_server and run_tls_server are set to false. At least one must be enabled for grpcweb proxy to function correctly.")
 	}
 
-	var theSettings Settings = buildSettings();
-	jsonData, _ := json.Marshal(theSettings)
-	logrus.Printf("version: %s", theSettings.Version)
-	logrus.Printf("grpc web proxy configuration settings: %s", jsonData)
+	serveMux := http.NewServeMux()
+	serveMux.Handle("/", wrappedGrpc)
 
-	http.Handle("/", wrappedGrpc)
-	http.HandleFunc("/settings", leakSettings)
+	if *enableHealthEndpoint {
+		logrus.Printf("health endpoint enabled on /%v", *healthEndpointName)
+		if *enableHealthCheckService {
+			logrus.Printf("health checking enabled for service '%v'", *healthServiceName)
+			// Health checking endpoint set up
+			healthCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			healthChecker := runHealthChecker(healthCtx, backendConn, *healthServiceName)
+			serveMux.HandleFunc("/"+*healthEndpointName, func(resp http.ResponseWriter, req *http.Request) {
+				status := healthChecker.GetStatus()
+				resp.WriteHeader(status)
+			})
+		} else {
+			// Health endpoint always returns HTTP status 200 if service is disabled
+			serveMux.HandleFunc("/"+*healthEndpointName, func(resp http.ResponseWriter, req *http.Request) {
+				resp.WriteHeader(http.StatusOK)
+			})
+		}
+	}
 
 	if *runHttpServer {
 		// Debug server.
-		debugServer := buildServer(http.DefaultServeMux)
-		http.Handle("/metrics", promhttp.Handler())
+		if *enableRequestDebug {
+			serveMux.Handle("/metrics", promhttp.Handler())
+			serveMux.HandleFunc("/debug/requests", func(resp http.ResponseWriter, req *http.Request) {
+				trace.Traces(resp, req)
+			})
+			serveMux.HandleFunc("/debug/events", func(resp http.ResponseWriter, req *http.Request) {
+				trace.Events(resp, req)
+			})
+		}
+
+		debugServer := buildServer(wrappedGrpc, serveMux)
 		debugListener := buildListenerOrFail("http", *flagHttpPort)
 		serveServer(debugServer, debugListener, "http", errChan)
 	}
 
 	if *runTlsServer {
-		// tls server.
-		//servingServer := buildServer(wrappedGrpc)
-		servingServer := buildServer(http.DefaultServeMux)
+		servingServer := buildServer(wrappedGrpc, serveMux)
 		servingListener := buildListenerOrFail("http", *flagHttpTlsPort)
 		servingListener = tls.NewListener(servingListener, buildServerTlsOrFail())
 		serveServer(servingServer, servingListener, "http_tls", errChan)
@@ -165,91 +186,10 @@ func main() {
 	// TODO(mwitkow): Add graceful shutdown.
 }
 
-// build the settings to print out later
-type Settings struct {
-	// defined in main.go
-	BackendAddr string `json:"backend_addr"`
-	BackendTLS bool `json:"backend_tls"`
-	BackendTLSNoVerify bool `json:"backend_tls_noverify"`
-	FlagBackendTlsClientCert string `json:"backend_client_tls_cert_file"`
-	BackendMaxCallRecvMsgSize int `json:"backend_max_call_recv_msg_size_bytes"`
-	FlagBackendTlsCa []string `json:"backend_tls_ca_files"`
-	FlagBackendDefaultAuthority string `json:"backend_default_authority"`
-	KeepAliveClientInterval time.Duration `json:"keep_alive_client_interval_ns"`
-	KeepAliveClientTimeout time.Duration `json:"keep_alive_client_timeout_ns"`
-	ExternalAddr string `json:"external_addr"`
-	FlagBackendBackoffMaxDelay time.Duration `json:"flag_backend_backoff_max_delay_ns"`
-
-	// defined in backend.go
-	FlagBindAddr string `json:"server_bind_address"`
-	FlagAllowAllOrigins bool `json:"allow_all_origins"`
-	FlagAllowedOrigins []string `json:"allowed_origins"`
-	RunHTTPServer bool `json:"run_http_server"`
-	RunTLSServer bool `json:"run_tls_server"`
-	UseWebSockets bool `json:"use_websockets"`
-	ServerHttpMaxWriteTimeout time.Duration `json:"server_http_max_write_timeout_ns"`
-	ServerHttpMaxReadTimeout time.Duration `json:"server_http_max_read_timeout_ns"`
-
-	// defined in server_tls.go
-	FlagTlsServerCert string `json:"server_tls_cert_file"`
-	FlagTlsServerClientCertVerification string `json:"server_tls_client_cert_verification"`
-	FlagTlsServerClientCAFiles []string `json:"server_tls_client_ca_files"`
-
-	// version of the grpc web proxy, hard coded
-	Version string `json:"version"`
-}
-func buildSettings() Settings{
-	var theSettings Settings
-	theSettings.BackendAddr = *flagBackendHostPort
-	theSettings.BackendTLS = *flagBackendIsUsingTls
-	theSettings.BackendTLSNoVerify = *flagBackendTlsNoVerify
-	theSettings.FlagBackendTlsClientCert = *flagBackendTlsClientCert
-	theSettings.BackendMaxCallRecvMsgSize = *flagMaxCallRecvMsgSize
-	theSettings.FlagBackendTlsCa = *flagBackendTlsCa
-	theSettings.FlagBackendDefaultAuthority = *flagBackendDefaultAuthority
-	theSettings.KeepAliveClientInterval = *flagKeepAliveClientInterval
-	theSettings.KeepAliveClientTimeout = *flagKeepAliveClientTimeout
-	theSettings.ExternalAddr = *flagExternalHostPort
-	theSettings.FlagBackendBackoffMaxDelay = *flagBackendBackoffMaxDelay
-
-	theSettings.FlagBindAddr = *flagBindAddr
-	theSettings.FlagAllowAllOrigins = *flagAllowAllOrigins
-	theSettings.FlagAllowedOrigins = *flagAllowedOrigins
-	theSettings.RunHTTPServer = *runHttpServer
-	theSettings.RunTLSServer = *runTlsServer
-	theSettings.UseWebSockets = *useWebsockets
-	theSettings.ServerHttpMaxWriteTimeout = *flagHttpMaxWriteTimeout
-	theSettings.ServerHttpMaxReadTimeout = *flagHttpMaxReadTimeout
-
-	theSettings.FlagTlsServerCert = *flagTlsServerCert
-	theSettings.FlagTlsServerClientCertVerification = *flagTlsServerClientCertVerification
-	theSettings.FlagTlsServerClientCAFiles = *flagTlsServerClientCAFiles
-
-	theSettings.Version = "v0.11.0-1"
-
-	if theSettings.ExternalAddr == "" {
-		theSettings.ExternalAddr = theSettings.BackendAddr // if external doesn't exist, show internal address
-	}
-	return theSettings;
-}
-
-// send current settings to http output
-func leakSettings(w http.ResponseWriter, r *http.Request) {
-	var theSettings Settings = buildSettings();
-	jsonData, _ := json.Marshal(theSettings)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonData)
-}
-
-//func buildServer(wrappedGrpc *grpcweb.WrappedGrpcServer) *http.Server {
-func buildServer(handler http.Handler) *http.Server {
+func buildServer(wrappedGrpc *grpcweb.WrappedGrpcServer, handler http.Handler) *http.Server {
 	return &http.Server{
 		WriteTimeout: *flagHttpMaxWriteTimeout,
 		ReadTimeout:  *flagHttpMaxReadTimeout,
-		/*Handler: http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-			wrappedGrpc.ServeHTTP(resp, req)
-		}),*/
 		Handler:      handler,
 	}
 }
