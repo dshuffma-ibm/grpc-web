@@ -446,7 +446,7 @@ func (s *GrpcWebWrapperTestSuite) TestCORSPreflight_AllowedByOriginFunc() {
 
 	corsResp, err = s.makeRequest("OPTIONS", "/improbable.grpcweb.test.TestService/Unknown", headers, nil, false)
 	assert.NoError(s.T(), err, "cors preflight should not return errors")
-	assert.Equal(s.T(), 500, corsResp.StatusCode, "cors should return 500 as grpc server does not understand that endpoint")
+	assert.Equal(s.T(), 400, corsResp.StatusCode, "cors should return 400 as grpc server does not understand that endpoint")
 }
 
 func (s *GrpcWebWrapperTestSuite) TestCORSPreflight_CorsMaxAge() {
